@@ -31,6 +31,8 @@
 #include <PN532.h>
 #include <AsyncMqttClient.h>
 
+#include <RFID125.h> 
+
 // these are from vendors
 #include "webh/glyphicons-halflings-regular.woff.gz.h"
 #include "webh/required.css.gz.h"
@@ -48,7 +50,7 @@ extern "C" {
 }
 #endif
 
-// #define DEBUG
+#define DEBUG
 
 // Create instance for Wiegand reade
 WIEGAND wg;
@@ -56,6 +58,8 @@ WIEGAND wg;
 MFRC522 mfrc522 = MFRC522();
 
 PN532 pn532;
+
+RFID125* rfid125;
 
 NtpClient NTP;
 
@@ -524,11 +528,22 @@ void ICACHE_FLASH_ATTR rfidloop() {
             delay(50);
             return;
         }
-    }
+    } else if (readerType == 3)  {
+        if (! rfid125->available() ) {
+            delay(50);
+            return;
+        }
+        uid = String(rfid125->getId());
+        Serial.print(F("[ INFO ] 125kHz ID: "));
+        Serial.println(uid);
+        cooldown = millis() + 2000;
+    }    
     else {
         delay(50);
         return;
     }
+
+
     if (mqttenabled == 1) {
         const char * topic = mqttTopic;
         mqttClient.publish(topic, 0, true, uid.c_str());
@@ -950,7 +965,9 @@ bool ICACHE_FLASH_ATTR loadConfiguration() {
     } else if ( readerType == 2) {
         rfidss = hardware["sspin"];
         setupPN532Reader(rfidss);
-    }
+    } else if ( readerType == 3) {
+        rfid125 = new RFID125(5);
+    }    
 
     autoRestartIntervalSeconds = general["restart"];
     wifiTimeout = network["offtime"];
